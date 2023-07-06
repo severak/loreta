@@ -1,6 +1,6 @@
 <Cabbage> bounds(0, 0, 0, 0)
-form caption("Loreta v 1") size(400, 300), guiMode("queue"), pluginId("lor1")
-keyboard bounds(8, 202, 381, 88)
+form caption("Loreta v 1") size(400, 500), guiMode("queue"), pluginId("lor1")
+keyboard bounds(6, 240, 381, 88)
 groupbox bounds(4, 8, 389, 60) channel("groupbox10001") text("Common")
 label bounds(16, 38, 80, 16) channel("label10002") text("Modwheel")
 
@@ -14,10 +14,21 @@ label bounds(15, 120, 80, 16) channel("label10009") text("Envelope")
 combobox bounds(97, 119, 80, 20) channel("a_envelope") text("piano", "organ", "string", "flute", "slow-flute") value(1)
 label bounds(181, 119, 80, 16) channel("label10011") text("filter")
 combobox bounds(266, 117, 118, 20) channel("a_filter") value(1) text("none", "static 2k", "static 6k", "static 8k", "dynamic 8k", "dynamic 8k dry", "8k quack")
+groupbox bounds(4, 158, 391, 77) channel("groupbox10013") text("Layer B")
+label bounds(16, 184, 80, 16) channel("label10014") text("Timbre")
+combobox bounds(98, 182, 80, 20) channel("b_timbre") text("piano", "el piano (SIN)", "e-bass", "e-organ (SAW)", "distorted", "guitar (SQR)", "organ", "oboe") value(2)
+label bounds(180, 184, 80, 16) channel("label10016") text("transpose")
+combobox bounds(266, 183, 118, 20) channel("b_transpose") value(1) text("no", "octave down", "octave up", "small detune", "more detune")
+label bounds(16, 208, 80, 16) channel("label123") text("Envelope")
+combobox bounds(98, 205, 80, 20) channel("b_envelope") value(1) text("piano", "organ", "string", "flute", "slow-flute")
+label bounds(179, 207, 80, 16) channel("label10020") text("filter")
+combobox bounds(264, 206, 118, 20) channel("b_filter") text("none", "static 2k", "static 6k", "static 8k", "dynamic 8k", "dynamic 8k dry", "8k quack") value(1)
+label bounds(183, 38, 80, 16) channel("label10022") text("ratio A:B")
+combobox bounds(268, 37, 115, 20) channel("ab_ratio") text("3:1", "2:1", "1:1", "1:2", "1:3", "A only", "B only") value(3)
 </Cabbage>
 <CsoundSynthesizer>
 <CsOptions>
--n -d -+rtmidi=NULL -M0 --midi-key-cps=4 --midi-velocity-amp=5
+-n --displays -d -+rtmidi=NULL -M0 --midi-key-cps=4 --midi-velocity-amp=5
 </CsOptions>
 <CsInstruments>
 ; Initialize the global variables. 
@@ -40,40 +51,49 @@ giTranspose[] init 6
 giTranspose[1] = 1
 giTranspose[2] = 0.5
 giTranspose[3] = 2
-giTranspose[4] = 1.05
-giTranspose[5] = 1.1
+giTranspose[4] = 1.001
+giTranspose[5] = 1.01
+
+
+; TODO ideas:
+; - higher notes have shorter release (when string)
+; - faster attack on more velocity
+; - some random stuff to feel more narural (copy from multitrack studio)
+; - some stuff for poor velocity sensitivity
+; - custom filter settings
 
 ;instrument will be triggered by keyboard widget
 instr 1
     kbnd pchbend 0, 100
     kcps = p4 + kbnd
     kvel = p5
+    
+    ; layer A
 
     ia_timbre chnget "a_timbre"
     ia_transpose chnget "a_transpose"
     ia_envelope chnget "a_envelope"
     ia_filter chnget "a_filter"
-    
-    
+        
     aOutA poscil3 0.3, kcps * giTranspose[ia_transpose], giWaves[ia_timbre]
     
     if ia_envelope == 1 then
         ; piano-like
-        kEnv madsr 0.05, 2, 0, 0.2
-        kEnv = kEnv * kvel
+        kAEnv madsr 0.05, 2, 0, 0.2
+        kAEnv = kAEnv * kvel
     elseif ia_envelope == 2 then
         ; organ-like
-        kEnv madsr 0.05, 0.01, 1, 0.05
+        kAEnv madsr 0.05, 0.01, 1, 0.05
     elseif ia_envelope == 3 then
         ; string-like
-        kEnv madsr 0.05, 1, 0, 1
-        kEnv = kEnv * kvel
+        kAEnv madsr 0.05, 1, 0, 1
+        kAEnv = kAEnv * kvel
     elseif ia_envelope == 4 then
         ; flute-like
-        kEnv madsr 0.2, 0.1, 0.8, 0.4
+        kAEnv madsr 0.2, 0.1, 0.8, 0.4
     elseif ia_envelope == 5 then
         ; slow-flute-like
-        kEnv madsr 0.5, 0.4, 0.6, 0.6    
+        kAEnv madsr 0.5, 0.4, 0.6, 0.6    
     endif
     
     if ia_filter == 2 then
@@ -83,15 +103,91 @@ instr 1
     elseif ia_filter == 4 then
         aOutA moogladder aOutA, 8000, 0.5
     elseif ia_filter == 5 then
-        aOutA moogladder aOutA, 8000*kEnv, 0.5
+        aOutA moogladder aOutA, 8000*kAEnv, 0.5
     elseif ia_filter == 6 then
-        aOutA moogladder aOutA, 8000*kEnv, 0
+        aOutA moogladder aOutA, 8000*kAEnv, 0
     elseif ia_filter == 7 then
-        aOutA moogladder aOutA, 8000*kEnv, 0.85            
+        aOutA moogladder aOutA, 8000*kAEnv, 0.85            
     endif
-
     
-    outs aOutA*kEnv, aOutA*kEnv
+    ; layer B
+    
+    ib_timbre chnget "b_timbre"
+    ib_transpose chnget "b_transpose"
+    ib_envelope chnget "b_envelope"
+    ib_filter chnget "b_filter"
+        
+    aOutB poscil3 0.3, kcps * giTranspose[ib_transpose], giWaves[ib_timbre]
+    
+    if ib_envelope == 1 then
+        ; piano-like
+        kBEnv madsr 0.05, 2, 0, 0.2
+        kBEnv = kBEnv * kvel
+    elseif ib_envelope == 2 then
+        ; organ-like
+        kBEnv madsr 0.05, 0.01, 1, 0.05
+    elseif ib_envelope == 3 then
+        ; string-like
+        kBEnv madsr 0.05, 1, 0, 1
+        kBEnv = kBEnv * kvel
+    elseif ib_envelope == 4 then
+        ; flute-like
+        kBEnv madsr 0.2, 0.1, 0.8, 0.4
+    elseif ib_envelope == 5 then
+        ; slow-flute-like
+        kBEnv madsr 0.5, 0.4, 0.6, 0.6    
+    endif
+    
+    if ib_filter == 2 then
+        aOutB moogladder aOutB, 2000, 0.5
+    elseif ib_filter == 3 then
+        aOutB moogladder aOutB, 6000, 0.5
+    elseif ib_filter == 4 then
+        aOutB moogladder aOutB, 8000, 0.5
+    elseif ib_filter == 5 then
+        aOutB moogladder aOutB, 8000*kBEnv, 0.5
+    elseif ib_filter == 6 then
+        aOutB moogladder aOutB, 8000*kBEnv, 0
+    elseif ib_filter == 7 then
+        aOutB moogladder aOutB, 8000*kBEnv, 0.85            
+    endif
+    
+    
+    kab_ratio chnget "ab_ratio"
+    if kab_ratio == 1 then
+        kAmix = 0.75
+        kBmix = 0.25
+    elseif kab_ratio == 2 then
+        kAmix = 0.6
+        kBmix = 0.3
+    elseif kab_ratio == 3 then
+        kAmix = 0.5
+        kBmix = 0.5
+    elseif kab_ratio == 4 then
+        kAmix = 0.3
+        kBmix = 0.6
+    elseif kab_ratio == 5 then
+        kAmix = 0.25
+        kBmix = 0.75
+    elseif kab_ratio == 6 then
+        kAmix = 1
+        kBmix = 0
+    elseif kab_ratio == 7 then
+        kAmix = 0
+        kBmix = 1        
+    endif
+    
+    k_modwheel chnget "modwheel"
+    if k_modwheel == 2 then
+        koscmix midictrl 1 , 0 , 1
+        kAmix = koscmix - 1
+        kBmix = koscmix
+    endif
+    
+    amix = (aOutA*kAEnv*kAmix) + (aOutB*kBEnv*kBmix)
+    amix clip amix, 0, 0.9
+    
+    outs amix, amix
 endin
 
 </CsInstruments>
